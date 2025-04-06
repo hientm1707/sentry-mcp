@@ -1,140 +1,102 @@
-# Sentry MCP (Model Context Protocol)
+# Sentry MCP (Mission Control Program)
 
-A Model Context Protocol server for retrieving and analyzing issues from Sentry.io. This server provides tools to inspect error reports, stacktraces, and other debugging information from your Sentry account.
+A Python-based tool for interacting with Sentry's API to monitor and analyze error tracking data. This tool provides comprehensive error analysis and reporting capabilities through a Model Context Protocol (MCP) server.
 
-## Overview
+## Features
 
-This MCP server enables AI assistants (like Claude) to interact with your Sentry data, providing:
-- Project-wide error statistics
-- Error trend analysis
-- Impact analysis on users/sessions
-- Customizable time ranges for analysis
-- Structured logging
+- **Project Statistics**: Get comprehensive error statistics across your project
+  - Total error counts
+  - Users affected
+  - Custom time ranges
+  - Environment-specific stats
+  
+- **Error Trend Analysis**: Identify and analyze error patterns
+  - Trending issues
+  - Frequency analysis
+  - User impact metrics
+  - First/last seen timestamps
 
-### Tools Provided
+- **Impact Analysis**: Understand how errors affect your users and sessions
+  - Session statistics
+  - Crash-free rates
+  - Release tracking
+  - User impact metrics
 
-1. `get_sentry_issue`
-   * Retrieve and analyze a Sentry issue by ID or URL
-   * Returns detailed issue information including:
-     - Title and Issue ID
-     - Status and Level
-     - First/Last seen timestamps
-     - Event count
-     - Full stacktrace
+## Installation
 
-2. `get_list_issues`
-   * Retrieve and analyze Sentry issues by project
-   * Returns a list of issues with basic information
-
-## Installation Options
-
-### 1. Using Poetry (Recommended for Development)
-
+1. Clone the repository:
 ```bash
-# Clone the repository
 git clone https://github.com/hientm1707/sentry-mcp.git
 cd sentry-mcp
+```
 
-# Install dependencies
+2. Install dependencies using Poetry:
+```bash
 poetry install
+```
 
-# Set up environment variables
+3. Set up environment variables:
+```bash
 cp .env.example .env
 ```
 
-### 2. Using uv (Alternative)
-
-```bash
-# Install using uv
-uv pip install -e .
-
-# Run directly
-python -m mcp_sentry
-```
-
-### 3. Using pip
-
-```bash
-pip install mcp-sentry
-```
-
-## Configuration
-
-### 1. Environment Setup
-
-Edit your `.env` file with the following:
+Edit `.env` with your Sentry credentials:
 ```env
-SENTRY_AUTH_TOKEN=your_sentry_token
-SENTRY_ORG=your_organization_slug
-SENTRY_PROJECT=your_project_slug
-LOG_LEVEL=INFO  # Optional, defaults to INFO
-```
-
-### 2. IDE Integration
-
-#### For Cursor:
-Add to your `mcp.json`:
-```json
-{
-  "context_servers": {
-    "mcp-sentry": {
-      "command": {
-        "path": "python",
-        "args": [
-          "-m",
-          "mcp_sentry",
-          "--auth-token",
-          "YOUR_SENTRY_TOKEN",
-          "--project-slug",
-          "YOUR_PROJECT_SLUG",
-          "--organization-slug",
-          "YOUR_ORGANIZATION_SLUG"
-        ]
-      }
-    }
-  }
-}
-```
-
-#### For Zed:
-Add to your `settings.json`:
-```json
-"context_servers": {
-  "mcp-sentry": {
-    "command": "python",
-    "args": [
-      "-m",
-      "mcp_sentry",
-      "--auth-token",
-      "YOUR_SENTRY_TOKEN",
-      "--project-slug",
-      "YOUR_PROJECT_SLUG",
-      "--organization-slug",
-      "YOUR_ORGANIZATION_SLUG"
-    ]
-  }
-}
+SENTRY_AUTH_TOKEN=your_sentry_auth_token
+SENTRY_ORG_SLUG=your_organization_slug
+SENTRY_PROJECT_SLUG=your_project_slug
+LOG_LEVEL=INFO
 ```
 
 ## Usage
 
-1. Start the MCP server:
+### Starting the Server
+
+Run the MCP server:
 ```bash
 ./run.sh
 ```
 
-2. The server will now be available to your AI assistant through your IDE integration.
+### Available Tools
 
-## Debugging
+1. `get_project_stats`
+   ```python
+   {
+     "tool": "get_project_stats",
+     "parameters": {
+       "time_range": "24h",  # Options: "24h", "7d", "all"
+       "group_by": "type",   # Optional: Group results by field
+       "environment": "prod" # Optional: Filter by environment
+     }
+   }
+   ```
 
-Use the MCP inspector to debug the server:
+2. `get_error_trends`
+   ```python
+   {
+     "tool": "get_error_trends",
+     "parameters": {
+       "time_range": "7d",
+       "min_occurrences": 10  # Minimum number of occurrences to include
+     }
+   }
+   ```
 
-```bash
-npx @modelcontextprotocol/inspector python -m mcp_sentry \
-  --auth-token YOUR_SENTRY_TOKEN \
-  --project-slug YOUR_PROJECT_SLUG \
-  --organization-slug YOUR_ORGANIZATION_SLUG
-```
+3. `get_impact_analysis`
+   ```python
+   {
+     "tool": "get_impact_analysis",
+     "parameters": {
+       "time_range": "24h",
+       "issue_id": "1234"  # Optional: Focus on specific issue
+     }
+   }
+   ```
+
+### Time Range Format
+- Hours: e.g., "24h", "48h"
+- Days: e.g., "7d", "30d"
+- All time: "all"
 
 ## Development
 
@@ -144,10 +106,48 @@ Requirements:
 - Structured logging with `structlog`
 - Unit tests with `pytest`
 
-Run tests:
+### Running Tests
+
 ```bash
 poetry run pytest
 ```
+
+### Project Structure
+
+```
+sentry-mcp/
+├── sentry_mcp.py        # Main MCP server implementation
+├── sentry_reports.py    # Core reporting functionality
+├── run.sh              # Server startup script
+├── tests/              # Test suite
+└── pyproject.toml      # Project dependencies and metadata
+```
+
+## Response Format
+
+All tools return JSON responses with the following structure:
+
+```json
+{
+  "time_range": {
+    "start": "2024-04-06T00:00:00",
+    "end": "2024-04-06T23:59:59"
+  },
+  "data": {
+    // Tool-specific data
+  },
+  "error": "Error message if something went wrong"
+}
+```
+
+## Error Handling
+
+The server handles various error cases:
+- Invalid authentication
+- Missing environment variables
+- API request failures
+- Invalid time ranges
+- Project not found
 
 ## License
 
