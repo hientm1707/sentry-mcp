@@ -1,158 +1,106 @@
-# Sentry MCP (Mission Control Program)
+# Sentry MCP Server
 
-A Python-based tool for interacting with Sentry's API to monitor and analyze error tracking data. This tool provides comprehensive error analysis and reporting capabilities through a Model Context Protocol (MCP) server.
+A Model Context Protocol (MCP) server for Sentry integration that provides AI assistants with access to Sentry's error tracking and monitoring capabilities.
 
-## Features
+## Quick Start
 
-- **Project Statistics**: Get comprehensive error statistics across your project
-  - Total error counts
-  - Users affected
-  - Custom time ranges
-  - Environment-specific stats
-  
-- **Error Trend Analysis**: Identify and analyze error patterns
-  - Trending issues
-  - Frequency analysis
-  - User impact metrics
-  - First/last seen timestamps
-
-- **Impact Analysis**: Understand how errors affect your users and sessions
-  - Session statistics
-  - Crash-free rates
-  - Release tracking
-  - User impact metrics
-
-## Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/hientm1707/sentry-mcp.git
+# Clone the repository and navigate to the directory
+git clone https://github.com/your-org/sentry-mcp.git
 cd sentry-mcp
-```
 
-2. Install dependencies using Poetry:
-```bash
-poetry install
-```
+# Create a virtual environment and install dependencies
+uv venv
+source .venv/bin/activate
+uv pip install -e .
 
-3. Set up environment variables:
-```bash
+# Configure your environment 
+# Copy the example and edit with your details
 cp .env.example .env
-```
+# Edit .env with your Sentry credentials
 
-Edit `.env` with your Sentry credentials:
-```env
-SENTRY_AUTH_TOKEN=your_sentry_auth_token
-SENTRY_ORG_SLUG=your_organization_slug
-SENTRY_PROJECT_SLUG=your_project_slug
-LOG_LEVEL=INFO
-```
-
-## Usage
-
-### Starting the Server
-
-Run the MCP server:
-```bash
+# Run the server
 ./run.sh
 ```
 
-### Available Tools
+Your server will be running at http://0.0.0.0:8000
 
-1. `get_project_stats`
-   ```python
-   {
-     "tool": "get_project_stats",
-     "parameters": {
-       "time_range": "24h",  # Options: "24h", "7d", "all"
-       "group_by": "type",   # Optional: Group results by field
-       "environment": "prod" # Optional: Filter by environment
-     }
-   }
-   ```
+## API Documentation
 
-2. `get_error_trends`
-   ```python
-   {
-     "tool": "get_error_trends",
-     "parameters": {
-       "time_range": "7d",
-       "min_occurrences": 10  # Minimum number of occurrences to include
-     }
-   }
-   ```
+Once the server is running, you can access:
+- Interactive docs: http://localhost:8000/docs
+- Alternative docs: http://localhost:8000/redoc
 
-3. `get_impact_analysis`
-   ```python
-   {
-     "tool": "get_impact_analysis",
-     "parameters": {
-       "time_range": "24h",
-       "issue_id": "1234"  # Optional: Focus on specific issue
-     }
-   }
-   ```
+## Features
 
-### Time Range Format
-- Hours: e.g., "24h", "48h"
-- Days: e.g., "7d", "30d"
-- All time: "all"
-
-## Development
-
-Requirements:
-- Python 3.8+
-- Poetry for dependency management
+- FastAPI-based MCP server implementation
+- Async request handling for better performance
 - Structured logging with `structlog`
-- Unit tests with `pytest`
+- Environment-based configuration
+- Hot reload support during development
+- OpenAPI documentation
 
-### Running Tests
+## Available MCP Tools
 
-```bash
-poetry run pytest
-```
+The server provides the following Sentry tools:
 
-### Project Structure
-
-```
-sentry-mcp/
-├── sentry_mcp.py        # Main MCP server implementation
-├── sentry_reports.py    # Core reporting functionality
-├── run.sh              # Server startup script
-├── tests/              # Test suite
-└── pyproject.toml      # Project dependencies and metadata
-```
-
-## Response Format
-
-All tools return JSON responses with the following structure:
-
+### 1. Get Project Stats
 ```json
 {
-  "time_range": {
-    "start": "2024-04-06T00:00:00",
-    "end": "2024-04-06T23:59:59"
-  },
-  "data": {
-    // Tool-specific data
-  },
-  "error": "Error message if something went wrong"
+    "tool": "get_project_stats",
+    "parameters": {
+        "time_range": "24h",
+        "group_by": "environment",
+        "environment": "production"
+    }
 }
 ```
 
-## Error Handling
+### 2. Get Error Trends
+```json
+{
+    "tool": "get_error_trends",
+    "parameters": {
+        "time_range": "7d",
+        "min_occurrences": 10
+    }
+}
+```
 
-The server handles various error cases:
-- Invalid authentication
-- Missing environment variables
-- API request failures
-- Invalid time ranges
-- Project not found
+### 3. Get Impact Analysis
+```json
+{
+    "tool": "get_impact_analysis",
+    "parameters": {
+        "time_range": "24h",
+        "issue_id": "required_issue_id"
+    }
+}
+```
+
+## Development
+
+### Project Structure
+```
+sentry-mcp/
+├── README.md
+├── pyproject.toml
+├── .env.example
+├── run.sh
+└── sentry_mcp/
+    ├── __init__.py
+    ├── __main__.py
+    ├── cli.py
+    ├── core/
+    │   ├── __init__.py
+    │   ├── reporter.py
+    │   └── server.py
+    └── utils/
+        ├── __init__.py
+        ├── exceptions.py
+        └── validators.py
+```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-This project is inspired by and compatible with the [MCP-100/mcp-sentry](https://github.com/MCP-100/mcp-sentry) implementation. 
+This project is licensed under the MIT License - see the LICENSE file for details. 

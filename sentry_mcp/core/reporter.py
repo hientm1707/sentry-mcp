@@ -8,8 +8,9 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 import structlog
+import httpx
 
-from sentry_mcp.utils.exceptions import SentryAPIError, SentryConfigError
+from sentry_mcp.utils.exceptions import SentryAPIError, SentryConfigError, SentryValidationError
 from sentry_mcp.utils.validators import validate_time_range
 
 logger = structlog.get_logger(__name__)
@@ -34,36 +35,34 @@ class SentryReporter:
             project_slug=project_slug
         )
 
-    def _make_request(
-        self, method: str, endpoint: str, params: Optional[Dict] = None
-    ) -> Dict:
-        """Make a request to the Sentry API with error handling."""
-        url = f'{self.base_url}/{endpoint.lstrip("/")}'
-        try:
-            response = requests.request(
-                method,
-                url,
-                headers=self.headers,
-                params=params
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(
-                'sentry_api_request_failed',
-                error=str(e),
-                endpoint=endpoint,
-                status_code=getattr(e.response, 'status_code', None)
-            )
-            raise SentryAPIError(f'API request failed: {str(e)}')
+    async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
+        """Make an authenticated request to the Sentry API."""
+        url = f"{self.base_url}/{endpoint}"
+        headers = {
+            "Authorization": f"Bearer {self.auth_token}",
+            "Content-Type": "application/json"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    **kwargs
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPError as e:
+                raise SentryAPIError(f"Sentry API request failed: {str(e)}")
 
     def _get_project_id(self) -> str:
         """Get the numeric project ID from the project slug."""
         try:
-            projects = self._make_request(
-                'GET',
-                f'organizations/{self.org_slug}/projects/'
-            )
+            url = f"{self.base_url}/organizations/{self.org_slug}/projects/"
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            projects = response.json()
             
             for project in projects:
                 if project['slug'] == self.project_slug:
@@ -81,10 +80,10 @@ class SentryReporter:
     def _get_project_creation_date(self) -> datetime:
         """Get the project creation date."""
         try:
-            project_data = self._make_request(
-                'GET',
-                f'projects/{self.org_slug}/{self.project_slug}/'
-            )
+            url = f"{self.base_url}/projects/{self.org_slug}/{self.project_slug}/"
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            project_data = response.json()
             return datetime.fromisoformat(
                 project_data['dateCreated'].replace('Z', '+00:00')
             )
@@ -114,7 +113,7 @@ class SentryReporter:
             
         return now - delta, now
 
-    def get_project_stats(
+    async def get_project_stats(
         self,
         time_range: str = 'all',
         group_by: Optional[str] = None,
@@ -138,7 +137,7 @@ class SentryReporter:
             params['groupBy'] = group_by
 
         try:
-            stats = self._make_request(
+            stats = await self._make_request(
                 'GET',
                 f'organizations/{self.org_slug}/issues/',
                 params=params
@@ -164,7 +163,7 @@ class SentryReporter:
             )
             raise
 
-    def get_error_trends(
+    async def get_error_trends(
         self,
         time_range: str = 'all',
         min_occurrences: int = 10
@@ -184,7 +183,7 @@ class SentryReporter:
         params = {k: v for k, v in params.items() if v is not None}
         
         try:
-            trends = self._make_request(
+            trends = await self._make_request(
                 'GET',
                 f'organizations/{self.org_slug}/issues/',
                 params=params
@@ -212,7 +211,7 @@ class SentryReporter:
             )
             raise
 
-    def get_impact_analysis(
+    async def get_impact_analysis(
         self,
         time_range: str,
         issue_id: Optional[str] = None
@@ -222,7 +221,7 @@ class SentryReporter:
         
         try:
             # Get project stats
-            stats_data = self._make_request(
+            stats_data = await self._make_request(
                 'GET',
                 f'projects/{self.org_slug}/{self.project_slug}/stats/',
                 params={
@@ -242,14 +241,14 @@ class SentryReporter:
             if issue_id:
                 session_params['query'] = f'issue:{issue_id}'
                 
-            session_data = self._make_request(
+            session_data = await self._make_request(
                 'GET',
                 f'organizations/{self.org_slug}/sessions/',
                 params=session_params
             )
 
             # Get release data
-            release_data = self._make_request(
+            release_data = await self._make_request(
                 'GET',
                 f'organizations/{self.org_slug}/releases/',
                 params={

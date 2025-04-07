@@ -8,6 +8,8 @@ from typing import Dict, Optional
 
 import structlog
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 from sentry_mcp.core.reporter import SentryReporter
 from sentry_mcp.utils.exceptions import (
@@ -20,6 +22,18 @@ from sentry_mcp.utils.exceptions import (
 load_dotenv()
 
 logger = structlog.get_logger(__name__)
+
+class MCPRequest(BaseModel):
+    """Model for MCP request validation"""
+    tool: str
+    parameters: Dict = {}
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Sentry MCP Server",
+    description="Model Context Protocol server for Sentry integration",
+    version="0.1.0"
+)
 
 class SentryMCPServer:
     """Handles incoming MCP requests for Sentry operations."""
@@ -43,79 +57,63 @@ class SentryMCPServer:
         )
         logger.info("initialized_sentry_mcp_server")
         
-    def handle_request(self, request_data: str) -> Dict:
+    async def handle_request(self, request: MCPRequest) -> Dict:
         """
         Handle an incoming MCP request.
         
         Args:
-            request_data: JSON string containing the request
+            request: Validated MCP request object
             
         Returns:
             Dict containing the response
             
         Raises:
-            SentryValidationError: If request format is invalid
-            SentryAPIError: If there is an error communicating with Sentry
+            HTTPException: If request is invalid or there's an error
         """
         try:
-            request = json.loads(request_data)
-        except json.JSONDecodeError as e:
-            logger.error("invalid_json_request", error=str(e))
-            return {"error": f"Invalid JSON request: {str(e)}"}
-            
-        tool = request.get("tool")
-        params = request.get("parameters", {})
-        
-        if not tool:
-            return {"error": "Missing required field: tool"}
-            
-        try:
-            if tool == "get_project_stats":
-                return self.reporter.get_project_stats(**params)
-            elif tool == "get_error_trends":
-                return self.reporter.get_error_trends(**params)
-            elif tool == "get_impact_analysis":
-                return self.reporter.get_impact_analysis(**params)
+            if request.tool == "get_project_stats":
+                return await self.reporter.get_project_stats(**request.parameters)
+            elif request.tool == "get_error_trends":
+                return await self.reporter.get_error_trends(**request.parameters)
+            elif request.tool == "get_impact_analysis":
+                return await self.reporter.get_impact_analysis(**request.parameters)
             else:
-                return {"error": f"Unknown tool: {tool}"}
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown tool: {request.tool}"
+                )
                 
-        except (SentryValidationError, SentryAPIError, SentryConfigError) as e:
+        except (SentryValidationError, SentryConfigError) as e:
             logger.error(
-                "request_handling_failed",
-                tool=tool,
+                "request_validation_failed",
+                tool=request.tool,
                 error=str(e)
             )
-            return {"error": str(e)}
+            raise HTTPException(status_code=400, detail=str(e))
+            
+        except SentryAPIError as e:
+            logger.error(
+                "sentry_api_error",
+                tool=request.tool,
+                error=str(e)
+            )
+            raise HTTPException(status_code=502, detail=str(e))
+            
         except Exception as e:
             logger.error(
                 "unexpected_error",
-                tool=tool,
+                tool=request.tool,
                 error=str(e)
             )
-            return {"error": f"Unexpected error: {str(e)}"}
-            
-def main():
-    """Main entry point for the MCP server."""
-    try:
-        server = SentryMCPServer()
-        
-        while True:
-            try:
-                request_data = input()
-                if not request_data:
-                    continue
-                    
-                response = server.handle_request(request_data)
-                print(json.dumps(response))
-                
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                break
-                
-    except Exception as e:
-        logger.error("server_initialization_failed", error=str(e))
-        print(json.dumps({"error": f"Server initialization failed: {str(e)}"}))
-        
-if __name__ == "__main__":
-    main() 
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unexpected error: {str(e)}"
+            )
+
+# Initialize server instance
+server = SentryMCPServer()
+
+@app.post("/mcp")
+async def handle_mcp_request(request: MCPRequest):
+    """Handle incoming MCP requests"""
+    return await server.handle_request(request) 

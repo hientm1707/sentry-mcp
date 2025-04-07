@@ -1,27 +1,31 @@
-[tool.poetry]
+[project]
 name = "sentry-mcp"
 version = "0.1.0"
 description = "Model Context Protocol server for Sentry integration"
-authors = ["Inspectorio Team"]
+authors = [
+    {name = "Inspectorio Team"}
+]
 readme = "README.md"
-packages = [{include = "sentry_mcp"}]
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "structlog>=24.1.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.1",
+    "httpx>=0.27.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-requests = "^2.31.0"
-python-dotenv = "^1.0.0"
-structlog = "^24.1.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
-pytest-cov = "^4.1.0"
-black = "^24.1.1"
-isort = "^5.13.2"
-flake8 = "^7.0.0"
+[project.scripts]
+create-mcp-server = "sentry_mcp.cli:create_server"
+my-server = "sentry_mcp.cli:run_server"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sentry_mcp"]
 
 [tool.black]
 line-length = 88
@@ -30,4 +34,5 @@ include = '\.pyi?$'
 
 [tool.isort]
 profile = "black"
-multi_line_output = 3 
+multi_line_output = 3
+
